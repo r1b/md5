@@ -3,7 +3,7 @@
 (library
  (md5)
 
- (export md5)
+ (export md5 bytevector->hex-string)
 
  (import (rnrs base)
          (rnrs arithmetic bitwise)
@@ -88,7 +88,7 @@
        (bytevector-u32-set! digest a-offset (the-operation (A) (B) (C) (D) 8 7 9 F) 'big)
        (bytevector-u32-set! digest d-offset (the-operation (D) (A) (B) (C) 9 12 10 F) 'big)
        (bytevector-u32-set! digest c-offset (the-operation (C) (D) (A) (B) 10 17 11 F) 'big)
-       (bytevector-u32-set! digest c-offset (the-operation (C) (D) (A) (B) 11 22 12 F) 'big)
+       (bytevector-u32-set! digest b-offset (the-operation (B) (C) (D) (A) 11 22 12 F) 'big)
        (bytevector-u32-set! digest a-offset (the-operation (A) (B) (C) (D) 12 7 13 F) 'big)
        (bytevector-u32-set! digest d-offset (the-operation (D) (A) (B) (C) 13 12 14 F) 'big)
        (bytevector-u32-set! digest c-offset (the-operation (C) (D) (A) (B) 14 17 15 F) 'big)
@@ -105,7 +105,7 @@
        (bytevector-u32-set! digest a-offset (the-operation (A) (B) (C) (D) 9 5 25 G) 'big)
        (bytevector-u32-set! digest d-offset (the-operation (D) (A) (B) (C) 14 9 26 G) 'big)
        (bytevector-u32-set! digest c-offset (the-operation (C) (D) (A) (B) 3 14 27 G) 'big)
-       (bytevector-u32-set! digest c-offset (the-operation (C) (D) (A) (B) 8 20 28 G) 'big)
+       (bytevector-u32-set! digest b-offset (the-operation (B) (C) (D) (A) 8 20 28 G) 'big)
        (bytevector-u32-set! digest a-offset (the-operation (A) (B) (C) (D) 13 5 29 G) 'big)
        (bytevector-u32-set! digest d-offset (the-operation (D) (A) (B) (C) 2 9 30 G) 'big)
        (bytevector-u32-set! digest c-offset (the-operation (C) (D) (A) (B) 7 14 31 G) 'big)
@@ -122,7 +122,7 @@
        (bytevector-u32-set! digest a-offset (the-operation (A) (B) (C) (D) 13 4 41 H) 'big)
        (bytevector-u32-set! digest d-offset (the-operation (D) (A) (B) (C) 0 11 42 H) 'big)
        (bytevector-u32-set! digest c-offset (the-operation (C) (D) (A) (B) 3 16 43 H) 'big)
-       (bytevector-u32-set! digest c-offset (the-operation (C) (D) (A) (B) 6 23 44 H) 'big)
+       (bytevector-u32-set! digest b-offset (the-operation (B) (C) (D) (A) 6 23 44 H) 'big)
        (bytevector-u32-set! digest a-offset (the-operation (A) (B) (C) (D) 9 4 45 H) 'big)
        (bytevector-u32-set! digest d-offset (the-operation (D) (A) (B) (C) 12 11 46 H) 'big)
        (bytevector-u32-set! digest c-offset (the-operation (C) (D) (A) (B) 15 16 47 H) 'big)
@@ -139,7 +139,7 @@
        (bytevector-u32-set! digest a-offset (the-operation (A) (B) (C) (D) 8 6 57 I) 'big)
        (bytevector-u32-set! digest d-offset (the-operation (D) (A) (B) (C) 15 10 58 I) 'big)
        (bytevector-u32-set! digest c-offset (the-operation (C) (D) (A) (B) 6 15 59 I) 'big)
-       (bytevector-u32-set! digest c-offset (the-operation (C) (D) (A) (B) 13 21 60 I) 'big)
+       (bytevector-u32-set! digest b-offset (the-operation (B) (C) (D) (A) 13 21 60 I) 'big)
        (bytevector-u32-set! digest a-offset (the-operation (A) (B) (C) (D) 4 6 61 I) 'big)
        (bytevector-u32-set! digest d-offset (the-operation (D) (A) (B) (C) 11 10 62 I) 'big)
        (bytevector-u32-set! digest c-offset (the-operation (C) (D) (A) (B) 2 15 63 I) 'big)
@@ -205,4 +205,8 @@
 
  ; u32 ... -> u32
  (define (u32-sum . operands)
-   (bitwise-and (apply + operands) #xffffffff)))
+   (bitwise-and (apply + operands) #xffffffff))
+
+ ; bytevector -> string
+ (define (bytevector->hex-string bytevector)
+   (map (lambda (byte) (number->string byte 16)) (bytevector->u8-list bytevector))))
