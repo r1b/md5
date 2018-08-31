@@ -10,28 +10,42 @@
          (rnrs bytevectors)
          (rnrs lists))
 
+ ; '(u32) -> bytevector
+ (define (u32-list->bytevector u32-list)
+   (let loop ((bytes (make-bytevector (* (length u32-list) WORD-SIZE-BYTES)))
+              (words u32-list)
+              (offset 0))
+     (if (null? words)
+         bytes
+         (begin
+           (bytevector-u32-set! bytes offset (car words) 'little)
+           (loop bytes (cdr words) (+ offset WORD-SIZE-BYTES))))))
+
  (define WORD-SIZE-BYTES 4)
+ (define DIGEST-SIZE-BYTES (* 4 WORD-SIZE-BYTES))
  (define BLOCK-SIZE-BYTES (* 16 WORD-SIZE-BYTES))
- (define DIGEST-INIT (list #x01 #x23 #x45 #x67
-                           #x89 #xab #xcd #xef
-                           #xfe #xdc #xba #x98
-                           #x76 #x54 #x32 #x10))
- (define T (list #xd76aa478 #xe8c7b756 #x242070db #xc1bdceee
-                 #xf57c0faf #x4787c62a #xa8304613 #xfd469501
-                 #x698098d8 #x8b44f7af #xffff5bb1 #x895cd7be
-                 #x6b901122 #xfd987193 #xa679438e #x49b40821
-                 #xf61e2562 #xc040b340 #x265e5a51 #xe9b6c7aa
-                 #xd62f105d #x02441453 #xd8a1e681 #xe7d3fbc8
-                 #x21e1cde6 #xc33707d6 #xf4d50d87 #x455a14ed
-                 #xa9e3e905 #xfcefa3f8 #x676f02d9 #x8d2a4c8a
-                 #xfffa3942 #x8771f681 #x6d9d6122 #xfde5380c
-                 #xa4beea44 #x4bdecfa9 #xf6bb4b60 #xbebfbc70
-                 #x289b7ec6 #xeaa127fa #xd4ef3085 #x04881d05
-                 #xd9d4d039 #xe6db99e5 #x1fa27cf8 #xc4ac5665
-                 #xf4292244 #x432aff97 #xab9423a7 #xfc93a039
-                 #x655b59c3 #x8f0ccc92 #xffeff47d #x85845dd1
-                 #x6fa87e4f #xfe2ce6e0 #xa3014314 #x4e0811a1
-                 #xf7537e82 #xbd3af235 #x2ad7d2bb #xeb86d391))
+ (define DIGEST-INIT
+   (u32-list->bytevector (list #x01234567
+                               #x89abcdef
+                               #xfedcba98
+                               #x76543210)))
+ (define T
+   (u32-list->bytevector (list #xd76aa478 #xe8c7b756 #x242070db #xc1bdceee
+                               #xf57c0faf #x4787c62a #xa8304613 #xfd469501
+                               #x698098d8 #x8b44f7af #xffff5bb1 #x895cd7be
+                               #x6b901122 #xfd987193 #xa679438e #x49b40821
+                               #xf61e2562 #xc040b340 #x265e5a51 #xe9b6c7aa
+                               #xd62f105d #x02441453 #xd8a1e681 #xe7d3fbc8
+                               #x21e1cde6 #xc33707d6 #xf4d50d87 #x455a14ed
+                               #xa9e3e905 #xfcefa3f8 #x676f02d9 #x8d2a4c8a
+                               #xfffa3942 #x8771f681 #x6d9d6122 #xfde5380c
+                               #xa4beea44 #x4bdecfa9 #xf6bb4b60 #xbebfbc70
+                               #x289b7ec6 #xeaa127fa #xd4ef3085 #x04881d05
+                               #xd9d4d039 #xe6db99e5 #x1fa27cf8 #xc4ac5665
+                               #xf4292244 #x432aff97 #xab9423a7 #xfc93a039
+                               #x655b59c3 #x8f0ccc92 #xffeff47d #x85845dd1
+                               #x6fa87e4f #xfe2ce6e0 #xa3014314 #x4e0811a1
+                               #xf7537e82 #xbd3af235 #x2ad7d2bb #xeb86d391)))
  
  ; bytevector -> bytevector
  (define (md5 bytes)
@@ -41,8 +55,8 @@
 
  ; bytevector -> bytevector
  (define (make-digest message)
-   (process-blocks message (u8-list->bytevector DIGEST-INIT)))
-
+   (process-blocks message DIGEST-INIT))
+ 
  ; bytevector bytevector -> bytevector
  (define (process-blocks message digest)
    (let ((message-length (bytevector-length message)))
@@ -61,7 +75,7 @@
    ; u32 u32 u32 u32 u8 u8 u8 (u32 u32 u32 -> u32)
    (define (the-operation A B C D block-offset shift-bits table-offset aux-fn)
      (let* ((block-word (bytevector-u32-ref block block-offset 'big))
-            (table-word (list-ref T (- table-offset 1))))
+            (table-word (bytevector-u32-ref T (- table-offset 1) 'big)))
        (u32-sum B (bitwise-arithmetic-shift-left (u32-sum A (aux-fn B C D) block-word table-word) shift-bits))))
    (let* ((a-offset 0)
           (b-offset 4)
@@ -189,6 +203,8 @@
        (bytevector-u8-set! padding 0 PADDING-CAR)
        padding)))
 
+
+ 
  ; bytevector ... -> bytevector
  ; FIXME: Space-efficiency
  (define (bytevector-append . bytevectors)
