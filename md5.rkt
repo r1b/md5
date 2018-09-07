@@ -3,7 +3,7 @@
 (library
  (md5)
 
- (export md5 bytevector->hex-string)
+ (export md5 bytevector->hex-string run-tests)
 
  (import (rnrs base)
          (rnrs arithmetic bitwise)
@@ -11,43 +11,30 @@
          (rnrs bytevectors)
          (rnrs lists))
 
- ; '(u32) -> bytevector
- (define (u32-list->bytevector u32-list)
-   (let loop ((bytes (make-bytevector (* (length u32-list) WORD-SIZE-BYTES)))
-              (words u32-list)
-              (offset 0))
-     (if (null? words)
-         bytes
-         (begin
-           (bytevector-u32-set! bytes offset (car words) 'little)
-           (loop bytes (cdr words) (+ offset WORD-SIZE-BYTES))))))
-
  (define BITS-PER-BYTE 8)
  (define WORD-SIZE-BYTES 4)
  (define DIGEST-SIZE-BYTES (* 4 WORD-SIZE-BYTES))
  (define BLOCK-SIZE-BYTES (* 16 WORD-SIZE-BYTES))
- (define DIGEST-INIT
-   (u32-list->bytevector (list #x01234567
-                               #x89abcdef
-                               #xfedcba98
-                               #x76543210)))
- (define T
-   (u32-list->bytevector (list #xd76aa478 #xe8c7b756 #x242070db #xc1bdceee
-                               #xf57c0faf #x4787c62a #xa8304613 #xfd469501
-                               #x698098d8 #x8b44f7af #xffff5bb1 #x895cd7be
-                               #x6b901122 #xfd987193 #xa679438e #x49b40821
-                               #xf61e2562 #xc040b340 #x265e5a51 #xe9b6c7aa
-                               #xd62f105d #x02441453 #xd8a1e681 #xe7d3fbc8
-                               #x21e1cde6 #xc33707d6 #xf4d50d87 #x455a14ed
-                               #xa9e3e905 #xfcefa3f8 #x676f02d9 #x8d2a4c8a
-                               #xfffa3942 #x8771f681 #x6d9d6122 #xfde5380c
-                               #xa4beea44 #x4bdecfa9 #xf6bb4b60 #xbebfbc70
-                               #x289b7ec6 #xeaa127fa #xd4ef3085 #x04881d05
-                               #xd9d4d039 #xe6db99e5 #x1fa27cf8 #xc4ac5665
-                               #xf4292244 #x432aff97 #xab9423a7 #xfc93a039
-                               #x655b59c3 #x8f0ccc92 #xffeff47d #x85845dd1
-                               #x6fa87e4f #xfe2ce6e0 #xa3014314 #x4e0811a1
-                               #xf7537e82 #xbd3af235 #x2ad7d2bb #xeb86d391)))
+ (define DIGEST-INIT (list #x67452301
+                           #xefcdab89
+                           #x98badcfe
+                           #x10325476))
+ (define T (list #xd76aa478 #xe8c7b756 #x242070db #xc1bdceee
+                 #xf57c0faf #x4787c62a #xa8304613 #xfd469501
+                 #x698098d8 #x8b44f7af #xffff5bb1 #x895cd7be
+                 #x6b901122 #xfd987193 #xa679438e #x49b40821
+                 #xf61e2562 #xc040b340 #x265e5a51 #xe9b6c7aa
+                 #xd62f105d #x02441453 #xd8a1e681 #xe7d3fbc8
+                 #x21e1cde6 #xc33707d6 #xf4d50d87 #x455a14ed
+                 #xa9e3e905 #xfcefa3f8 #x676f02d9 #x8d2a4c8a
+                 #xfffa3942 #x8771f681 #x6d9d6122 #xfde5380c
+                 #xa4beea44 #x4bdecfa9 #xf6bb4b60 #xbebfbc70
+                 #x289b7ec6 #xeaa127fa #xd4ef3085 #x04881d05
+                 #xd9d4d039 #xe6db99e5 #x1fa27cf8 #xc4ac5665
+                 #xf4292244 #x432aff97 #xab9423a7 #xfc93a039
+                 #x655b59c3 #x8f0ccc92 #xffeff47d #x85845dd1
+                 #x6fa87e4f #xfe2ce6e0 #xa3014314 #x4e0811a1
+                 #xf7537e82 #xbd3af235 #x2ad7d2bb #xeb86d391))
  
  ; bytevector -> bytevector
  (define (md5 bytes)
@@ -57,7 +44,7 @@
 
  ; bytevector -> bytevector
  (define (make-digest message)
-   (process-blocks message (bytevector-copy DIGEST-INIT)))
+   (process-blocks message (bytevector-copy (u32-list->bytevector DIGEST-INIT))))
  
  ; bytevector bytevector -> bytevector
  (define (process-blocks message digest)
@@ -74,10 +61,11 @@
 
  ; bytevector bytevector -> bytevector
  (define (process-block block digest)
+   (define TABLE (u32-list->bytevector T))
    ; u32 u32 u32 u32 u8 u8 u8 (u32 u32 u32 -> u32)
    (define (the-operation A B C D block-offset shift-bits table-offset aux-fn)
      (let* ((block-word (bytevector-u32-ref block block-offset 'little))
-            (table-word (bytevector-u32-ref T (- table-offset 1) 'little)))
+            (table-word (bytevector-u32-ref TABLE (- table-offset 1) 'little)))
        (u32-sum B (fxrotate-bit-field (u32-sum A (aux-fn B C D) block-word table-word) 0 (* WORD-SIZE-BYTES BITS-PER-BYTE) shift-bits))))
    (let* ((a-offset 0)
           (b-offset 4)
@@ -205,6 +193,32 @@
      (begin
        (bytevector-u8-set! padding 0 PADDING-CAR)
        padding)))
+
+ (define (test-make-padding)
+   ; max padding (length = 0)
+   (assert (equal? (make-padding (u8-list->bytevector '()))
+                   (u8-list->bytevector '(128 0 0 0 0 0 0 0 0 0 0 0 0 0
+                                              0 0 0 0 0 0 0 0 0 0 0 0 0 0
+                                              0 0 0 0 0 0 0 0 0 0 0 0 0 0
+                                              0 0 0 0 0 0 0 0 0 0 0 0 0 0))))
+   ; min padding (length = 55)
+   (assert (equal? (make-padding
+                    (u8-list->bytevector '(0 0 0 0 0 0 0 0 0 0 0 0 0 0
+                                             0 0 0 0 0 0 0 0 0 0 0 0 0 0
+                                             0 0 0 0 0 0 0 0 0 0 0 0 0 0
+                                             0 0 0 0 0 0 0 0 0 0 0 0 0)))
+                   (u8-list->bytevector '(128))))
+
+   ; max padding (length = 56)
+   (assert (equal? (make-padding
+                    (u8-list->bytevector '(0 0 0 0 0 0 0 0 0 0 0 0 0 0
+                                             0 0 0 0 0 0 0 0 0 0 0 0 0 0
+                                             0 0 0 0 0 0 0 0 0 0 0 0 0 0
+                                             0 0 0 0 0 0 0 0 0 0 0 0 0 0)))
+                   (u8-list->bytevector '(128 0 0 0 0 0 0 0 0 0 0 0 0 0
+                                              0 0 0 0 0 0 0 0 0 0 0 0 0 0
+                                              0 0 0 0 0 0 0 0 0 0 0 0 0 0
+                                              0 0 0 0 0 0 0 0 0 0 0 0 0 0)))))
  
  ; bytevector ... -> bytevector
  ; FIXME: Space-efficiency
@@ -220,10 +234,90 @@
                (bytevector-append (+ target-start current-bytevector-length) (cdr bytevectors))))))
      (bytevector-append 0 bytevectors)))
 
+ (define (test-bytevector-append)
+   ; empty list
+   (let ((bytevector (make-bytevector 0)))
+     (assert (equal? (bytevector-append) bytevector)))
+
+   ; one element
+   (let ((bytevector-in (u8-list->bytevector '(0 1 2 3)))
+         (bytevector-out (u8-list->bytevector '(0 1 2 3))))
+     (assert (equal? (bytevector-append bytevector-in) bytevector-out)))
+
+   ; two elements
+   (let ((bytevector-in-a (u8-list->bytevector '(0 1 2 3)))
+         (bytevector-in-b (u8-list->bytevector '(4 5 6 7)))
+         (bytevector-out (u8-list->bytevector '(0 1 2 3 4 5 6 7))))
+     (assert (equal? (bytevector-append bytevector-in-a bytevector-in-b) bytevector-out))))
+
  ; u32 ... -> u32
  (define (u32-sum . operands)
    (bitwise-and (apply + operands) #xffffffff))
 
+ (define (test-u32-sum)
+   ; empty list
+   (assert (equal? (u32-sum) 0))
+
+   ; one element
+   (assert (equal? (u32-sum 42) 42))
+
+   ; two elements
+   (assert (equal? (u32-sum 21 21) 42))
+   
+   ; three elements
+   (assert (equal? (u32-sum 14 14 14) 42))
+
+   ; overflow
+   (assert (equal? (u32-sum #xffffffff 2) 1)))
+
+ ; '(u32) -> bytevector
+ (define (u32-list->bytevector u32-list)
+   (let loop ((bytes (make-bytevector (* (length u32-list) WORD-SIZE-BYTES)))
+              (words u32-list)
+              (offset 0))
+     (if (null? words)
+         bytes
+         (begin
+           (bytevector-u32-set! bytes offset (car words) 'little)
+           (loop bytes (cdr words) (+ offset WORD-SIZE-BYTES))))))
+
+ (define (test-u32-list->bytevector)
+   ; empty list
+   (let ((bytevector (make-bytevector 0)))
+     (assert (equal? (u32-list->bytevector '()) bytevector)))
+
+   ; one word
+   (let ((bytevector (u8-list->bytevector (list 1 0 0 0))))
+     (assert (equal? (u32-list->bytevector '(1)) bytevector)))
+
+   ; two words
+   (let ((bytevector (u8-list->bytevector (list 1 0 0 0 2 0 0 0))))
+     (assert (equal? (u32-list->bytevector '(1 2)) bytevector))))
+
  ; bytevector -> string
  (define (bytevector->hex-string bytevector)
-   (map (lambda (byte) (number->string byte 16)) (bytevector->u8-list bytevector))))
+   (map (lambda (byte) (number->string byte 16)) (bytevector->u8-list bytevector)))
+
+ (define (test-bytevector->hex-string)
+   ; empty bytevector
+   (assert (equal? (bytevector->hex-string (make-bytevector 0)) '()))
+
+   ; little endian
+   (let ((bytevector (make-bytevector WORD-SIZE-BYTES)))
+     (begin
+       (bytevector-u32-set! bytevector 0 #x42 'little)
+       (assert (equal? (bytevector->hex-string bytevector) (list "42" "0" "0" "0")))))
+
+   ; big endian
+   (let ((bytevector (make-bytevector WORD-SIZE-BYTES)))
+     (begin
+       (bytevector-u32-set! bytevector 0 #xdeadbeef 'big)
+       (assert (equal? (bytevector->hex-string bytevector) (list "de" "ad" "be" "ef"))))))
+
+ (define (run-tests)
+   (begin
+     (test-u32-list->bytevector)
+     (test-bytevector->hex-string)
+     (test-u32-sum)
+     (test-bytevector-append)
+     (test-make-padding))))
